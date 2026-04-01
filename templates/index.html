@@ -1,0 +1,1249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QSIM -- Quantum Circuit Simulator</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='28' font-size='28'>&#9883;</text></svg>">
+</head>
+<body>
+
+<header class="header">
+    <div class="header-brand">
+        <span class="logo">QSIM</span>
+        <span class="tagline">Quantum Circuit Simulator</span>
+    </div>
+    <div class="header-stats">
+        <div class="stat"><span class="stat-value" id="stat-qubits">2</span><span class="stat-label">Qubits</span></div>
+        <div class="stat"><span class="stat-value" id="stat-gates">0</span><span class="stat-label">Gates</span></div>
+        <div class="stat"><span class="stat-value" id="stat-dim">4</span><span class="stat-label">Dim</span></div>
+        <div class="stat"><span class="entanglement-status separable" id="stat-entanglement">Separable</span></div>
+    </div>
+    <div class="header-actions">
+        <div class="qubit-control">
+            <button class="btn btn-qubit" onclick="removeQubit()">-</button>
+            <span id="qubit-count">2</span>
+            <button class="btn btn-qubit" onclick="addQubit()">+</button>
+        </div>
+        <select id="template-select" class="btn btn-reset" style="min-width:120px;cursor:pointer;" onchange="loadTemplate(this.value)">
+            <option value="">Templates</option>
+        </select>
+        <label style="display:flex;align-items:center;gap:4px;font-family:var(--font-mono);font-size:10px;color:var(--text-secondary);">
+            Shots: <input type="number" id="shots-input" min="0" max="100000" value="0" style="width:60px;padding:3px 6px;background:var(--bg-deep);border:1px solid var(--copper-dim);border-radius:3px;color:var(--text-primary);font-family:var(--font-mono);font-size:10px;">
+        </label>
+        <button class="btn btn-reset" onclick="resetCircuit()" title="Reset (R)">Reset</button>
+        <button class="btn btn-simulate" onclick="runSimulation()" title="Simulate">Simulate</button>
+    </div>
+</header>
+
+<div class="app-layout">
+
+    <aside class="gate-palette">
+        <div><div class="palette-section-title">Single Qubit</div><div class="palette-gates" id="single-gates"></div></div>
+        <div><div class="palette-section-title">Rotation</div><div class="palette-gates" id="rotation-gates"></div></div>
+        <div><div class="palette-section-title">Two Qubit</div><div class="palette-gates" id="two-qubit-gates"></div></div>
+        <div><div class="palette-section-title">Ctrl Rotation</div><div class="palette-gates" id="ctrl-rotation-gates"></div></div>
+        <div><div class="palette-section-title">Three Qubit</div><div class="palette-gates" id="three-qubit-gates"></div></div>
+    </aside>
+
+    <div class="center-column">
+        <div class="circuit-area">
+            <div class="circuit-toolbar">
+                <div class="circuit-toolbar-left"><span class="toolbar-title">Circuit</span></div>
+                <button class="btn-add-step" onclick="addStep()">+ Add Step</button>
+            </div>
+            <div class="circuit-scroll">
+                <div class="circuit-grid" id="circuit-grid">
+                    <div class="qubit-labels" id="qubit-labels"></div>
+                    <div class="circuit-steps" id="circuit-steps"></div>
+                </div>
+                <div class="circuit-empty" id="circuit-empty">
+                    <div class="empty-icon">&#9883;</div>
+                    <div class="empty-text">Drag gates onto qubit wires &middot; Press <kbd>R</kbd> to reset &middot; Auto-simulates on placement</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="viz-panel">
+            <div class="viz-tabs">
+                <button class="viz-tab active" data-tab="bloch" onclick="switchVizTab('bloch')">Bloch Spheres</button>
+                <button class="viz-tab" data-tab="polar" onclick="switchVizTab('polar')">Polar Diagram</button>
+                <button class="viz-tab" data-tab="probdist" onclick="switchVizTab('probdist')">Prob Distribution</button>
+                <button class="viz-tab" data-tab="histogram" onclick="switchVizTab('histogram')">Shot Histogram</button>
+            </div>
+
+            <!-- Bloch Spheres -->
+            <div class="viz-tab-content active" id="viz-bloch">
+                <div class="viz-empty" id="bloch-empty"><div class="viz-empty-icon">&#9883;</div><div class="viz-empty-text">Bloch spheres appear here after simulation<br>Click to expand &middot; Drag to rotate</div></div>
+                <div class="bloch-viz" id="bloch-viz" style="display:none;"></div>
+            </div>
+
+            <!-- Polar Diagram (full width, clean) -->
+            <div class="viz-tab-content" id="viz-polar">
+                <div class="viz-empty" id="polar-empty"><div class="viz-empty-icon">&#9883;</div><div class="viz-empty-text">Amplitude & phase polar diagram appears here</div></div>
+                <div class="viz-full" id="polar-viz" style="display:none;">
+                    <div class="viz-toolbar">
+                        <span class="viz-toolbar-title">Amplitude & Phase</span>
+                        <div class="zoom-controls">
+                            <button class="zoom-btn" onclick="zoomPolar(-1)">-</button>
+                            <span class="zoom-level" id="polar-zoom-level">1.0x</span>
+                            <button class="zoom-btn" onclick="zoomPolar(1)">+</button>
+                            <button class="zoom-btn" onclick="zoomPolar(0)" title="Reset">R</button>
+                        </div>
+                    </div>
+                    <div class="canvas-zoom-wrap" id="polar-wrap"><canvas id="sv-polar-canvas"></canvas></div>
+                </div>
+            </div>
+
+            <!-- Probability Distribution (full width) -->
+            <div class="viz-tab-content" id="viz-probdist">
+                <div class="viz-empty" id="pd-empty"><div class="viz-empty-icon">&#9883;</div><div class="viz-empty-text">Probability distribution appears here</div></div>
+                <div class="viz-full" id="pd-viz" style="display:none;">
+                    <div class="viz-toolbar">
+                        <span class="viz-toolbar-title">Probability Distribution</span>
+                        <div class="zoom-controls">
+                            <button class="zoom-btn" onclick="zoomBars('sv', -1)">-</button>
+                            <span class="zoom-level" id="sv-zoom-level">1.0x</span>
+                            <button class="zoom-btn" onclick="zoomBars('sv', 1)">+</button>
+                            <button class="zoom-btn" onclick="zoomBars('sv', 0)" title="Reset">R</button>
+                        </div>
+                    </div>
+                    <div class="canvas-scroll-wrap" id="bars-wrap"><canvas id="sv-bars-canvas"></canvas></div>
+                </div>
+            </div>
+
+            <!-- Shot Histogram (full width) -->
+            <div class="viz-tab-content" id="viz-histogram">
+                <div class="viz-empty" id="hist-empty"><div class="viz-empty-icon">&#9883;</div><div class="viz-empty-text">Set Shots > 0 and simulate<br>to see measurement histogram</div></div>
+                <div class="viz-full" id="hist-viz" style="display:none;">
+                    <div class="viz-toolbar">
+                        <span class="viz-toolbar-title">Measurement Counts (<span id="hist-shot-count">0</span> shots)</span>
+                        <div class="zoom-controls">
+                            <button class="zoom-btn" onclick="zoomBars('hist', -1)">-</button>
+                            <span class="zoom-level" id="hist-zoom-level">1.0x</span>
+                            <button class="zoom-btn" onclick="zoomBars('hist', 1)">+</button>
+                            <button class="zoom-btn" onclick="zoomBars('hist', 0)" title="Reset">R</button>
+                        </div>
+                    </div>
+                    <div class="canvas-scroll-wrap" id="hist-wrap"><canvas id="hist-canvas"></canvas></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <aside class="results-panel" id="results-panel">
+        <div class="no-results" id="no-results"><div class="nr-icon">&#9883;</div><div class="nr-text">Place gates and simulate<br>to see quantum state results</div></div>
+        <div id="results-content" style="display:none;">
+            <div class="results-section">
+                <div class="results-section-title">Entanglement Entropy</div>
+                <div class="entropy-display"><div class="entropy-value" id="entropy-value">0.000</div><div class="entropy-bar"><div class="entropy-fill" id="entropy-fill"></div></div></div>
+                <div class="entropy-note" id="entropy-note">S = 0 (separable state)</div>
+            </div>
+            <div class="results-section">
+                <div class="results-section-title" style="display:flex;justify-content:space-between;align-items:center;">
+                    State Vector
+                    <div style="display:flex;gap:4px;align-items:center;">
+                        <button class="sv-filter-btn active" data-filter="nonzero" onclick="filterStateVector('nonzero')">Non-zero</button>
+                        <button class="sv-filter-btn" data-filter="all" onclick="filterStateVector('all')">All</button>
+                    </div>
+                </div>
+                <div id="state-vector-list" class="sv-list-scrollable"></div>
+            </div>
+            <div class="results-section">
+                <div class="results-section-title">Measurement Probabilities</div>
+                <div id="prob-histogram"></div>
+            </div>
+        </div>
+        <div class="gate-info-panel" id="gate-info-panel">
+            <div class="results-section-title">Gate Info</div>
+            <div class="gate-info-name" id="gate-info-name"></div>
+            <div class="gate-info-desc" id="gate-info-desc"></div>
+            <div class="gate-matrix" id="gate-info-matrix"></div>
+        </div>
+    </aside>
+</div>
+
+<!-- Parameter Modal -->
+<div class="param-modal-overlay" id="param-modal">
+    <div class="param-modal">
+        <h3 id="param-modal-title">Gate Parameter</h3>
+        <div id="param-fields">
+            <label for="param-theta">Theta (radians)</label>
+            <input type="number" id="param-theta" step="0.1" value="3.14159">
+        </div>
+        <div id="param-extra-fields" style="display:none;">
+            <label for="param-phi">Phi (radians)</label>
+            <input type="number" id="param-phi" step="0.1" value="0">
+            <label for="param-lambda">Lambda (radians)</label>
+            <input type="number" id="param-lambda" step="0.1" value="0">
+        </div>
+        <div class="param-presets">
+            <button class="preset-btn" onclick="setPreset(Math.PI)">&#960;</button>
+            <button class="preset-btn" onclick="setPreset(Math.PI/2)">&#960;/2</button>
+            <button class="preset-btn" onclick="setPreset(Math.PI/4)">&#960;/4</button>
+            <button class="preset-btn" onclick="setPreset(Math.PI/3)">&#960;/3</button>
+            <button class="preset-btn" onclick="setPreset(2*Math.PI)">2&#960;</button>
+            <button class="preset-btn" onclick="setPreset(-Math.PI/2)">-&#960;/2</button>
+        </div>
+        <div class="param-modal-actions">
+            <button class="btn btn-reset" onclick="cancelParam()">Cancel</button>
+            <button class="btn btn-simulate" onclick="confirmParam()">Apply</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// ===== STATE =====
+let numQubits = 2, numSteps = 4, circuit = [], gateCatalogue = [], simulating = false;
+let paramCallback = null, lastSimData = null, blochRotations = {};
+const ROTATION_GATES = ['Rx','Ry','Rz','P','U3'];
+const CTRL_ROTATION_GATES = ['CP','CRx','CRy','CRz'];
+
+function getBlochRotation(qi) {
+    if (!blochRotations[qi]) blochRotations[qi] = { az: -0.4, el: 0.5 };
+    return blochRotations[qi];
+}
+
+// ===== INIT =====
+async function init() {
+    const [gRes, tRes] = await Promise.all([fetch('/gates'), fetch('/templates')]);
+    const gData = await gRes.json();
+    const tData = await tRes.json();
+    gateCatalogue = gData.gates;
+    buildPalette();
+    buildTemplateSelect(tData.templates);
+    resetCircuit();
+}
+
+function buildPalette() {
+    const containers = {
+        single: document.getElementById('single-gates'),
+        rotation: document.getElementById('rotation-gates'),
+        two_qubit: document.getElementById('two-qubit-gates'),
+        ctrl_rotation: document.getElementById('ctrl-rotation-gates'),
+        three_qubit: document.getElementById('three-qubit-gates'),
+    };
+
+    gateCatalogue.forEach(g => {
+        const cat = g.category || 'single';
+        const container = containers[cat];
+        if (!container) return;
+        const el = createPaletteGate(g);
+        if (cat === 'two_qubit') el.classList.add('two-qubit');
+        if (cat === 'rotation') el.classList.add('rotation-gate');
+        if (cat === 'ctrl_rotation') { el.classList.add('rotation-gate'); el.classList.add('two-qubit'); }
+        if (cat === 'three_qubit') el.classList.add('three-qubit');
+        container.appendChild(el);
+    });
+}
+
+function buildTemplateSelect(templates) {
+    const sel = document.getElementById('template-select');
+    templates.forEach(t => {
+        const opt = document.createElement('option');
+        opt.value = t.id;
+        opt.textContent = `${t.name} (${t.num_qubits}q)`;
+        sel.appendChild(opt);
+    });
+}
+
+async function loadTemplate(id) {
+    if (!id) return;
+    const res = await fetch(`/templates/${id}`);
+    const tmpl = await res.json();
+    numQubits = tmpl.num_qubits;
+    document.getElementById('qubit-count').textContent = numQubits;
+    blochRotations = {};
+
+    // Convert template circuit to our internal format
+    circuit = [];
+    const maxSteps = tmpl.circuit.length + 2;
+    numSteps = maxSteps;
+
+    for (let s = 0; s < maxSteps; s++) circuit.push(new Array(numQubits).fill(null));
+
+    tmpl.circuit.forEach((step, si) => {
+        step.forEach(op => {
+            const gateInfo = gateCatalogue.find(x => x.name === op.gate) ||
+                             gateCatalogue.find(x => x.name.toUpperCase() === op.gate.toUpperCase());
+            if (!gateInfo) return;
+
+            const target = op.target;
+            const control = op.control;
+            const control2 = op.control2;
+            const params = op.params || {};
+
+            if (gateInfo.num_qubits === 1) {
+                circuit[si][target] = { gate: gateInfo.name, symbol: gateInfo.symbol, params, isTwoQubit: false, isThreeQubit: false };
+            } else if (gateInfo.num_qubits === 2 && control !== undefined) {
+                circuit[si][control] = { gate: gateInfo.name, symbol: gateInfo.symbol, params, isTwoQubit: true, isThreeQubit: false, control, target };
+                circuit[si][target] = { gate: gateInfo.name, display: 'connector', isTwoQubit: true, isThreeQubit: false, linkedQubit: control, control, target };
+            } else if (gateInfo.num_qubits === 3 && control !== undefined && control2 !== undefined) {
+                // Three-qubit: show gate on target, control dots on control and control2
+                circuit[si][target] = { gate: gateInfo.name, symbol: gateInfo.symbol, params, isTwoQubit: false, isThreeQubit: true, control, control2, target };
+                circuit[si][control] = { gate: gateInfo.name, display: 'connector', isTwoQubit: false, isThreeQubit: true, linkedQubit: target, control, control2, target };
+                circuit[si][control2] = { gate: gateInfo.name, display: 'connector', isTwoQubit: false, isThreeQubit: true, linkedQubit: target, control, control2, target };
+            }
+        });
+    });
+
+    document.getElementById('template-select').value = '';
+    renderCircuit();
+    runSimulation();
+}
+
+function createPaletteGate(gateInfo) {
+    const el = document.createElement('div');
+    el.className = 'palette-gate';
+    el.draggable = true;
+    el.innerHTML = `<span class="gate-symbol">${gateInfo.symbol}</span><span class="gate-name">${gateInfo.name}</span>`;
+    el.dataset.gate = gateInfo.name;
+    el.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/plain', gateInfo.name); e.dataTransfer.effectAllowed = 'copy'; });
+    el.addEventListener('mouseenter', () => showGateInfo(gateInfo));
+    el.addEventListener('mouseleave', hideGateInfo);
+    return el;
+}
+
+// ===== CIRCUIT =====
+function resetCircuit() {
+    numSteps = 4;
+    circuit = [];
+    for (let s = 0; s < numSteps; s++) circuit.push(new Array(numQubits).fill(null));
+    blochRotations = {};
+    lastSimData = null;
+    renderCircuit();
+    clearResults();
+    updateStats();
+}
+
+function addStep() { numSteps++; circuit.push(new Array(numQubits).fill(null)); renderCircuit(); }
+
+function addQubit() {
+    if (numQubits >= 10) return;
+    numQubits++;
+    circuit.forEach(step => step.push(null));
+    document.getElementById('qubit-count').textContent = numQubits;
+    renderCircuit(); updateStats();
+    if (getGateCount() > 0) runSimulation();
+}
+
+function removeQubit() {
+    if (numQubits <= 1) return;
+    numQubits--;
+    circuit.forEach(step => {
+        step.pop();
+        for (let q = 0; q < step.length; q++) {
+            const c = step[q];
+            if (c && (c.target === numQubits || c.control === numQubits || c.control2 === numQubits)) {
+                // Clear all parts of this multi-qubit gate
+                if (c.control !== undefined && c.control < step.length) step[c.control] = null;
+                if (c.control2 !== undefined && c.control2 < step.length) step[c.control2] = null;
+                if (c.target !== undefined && c.target < step.length) step[c.target] = null;
+                step[q] = null;
+            }
+        }
+    });
+    document.getElementById('qubit-count').textContent = numQubits;
+    renderCircuit(); updateStats();
+    if (getGateCount() > 0) runSimulation();
+}
+
+function getGateCount() {
+    let count = 0;
+    const counted = new Set();
+    circuit.forEach((step, si) => {
+        step.forEach((cell, qi) => {
+            if (cell && cell.display !== 'connector') {
+                const key = `${si}-${qi}`;
+                if (!counted.has(key)) { counted.add(key); count++; }
+            }
+        });
+    });
+    return count;
+}
+
+function updateStats() {
+    document.getElementById('stat-qubits').textContent = numQubits;
+    document.getElementById('stat-gates').textContent = getGateCount();
+    document.getElementById('stat-dim').textContent = Math.pow(2, numQubits);
+}
+
+// ===== RENDER =====
+function renderCircuit() {
+    const labelsEl = document.getElementById('qubit-labels');
+    const stepsEl = document.getElementById('circuit-steps');
+    labelsEl.innerHTML = '';
+    stepsEl.innerHTML = '';
+
+    for (let q = 0; q < numQubits; q++) {
+        const label = document.createElement('div');
+        label.className = 'qubit-label';
+        label.textContent = `q${q}`;
+        labelsEl.appendChild(label);
+    }
+
+    for (let s = 0; s < numSteps; s++) {
+        const stepEl = document.createElement('div');
+        stepEl.className = 'circuit-step';
+
+        for (let q = 0; q < numQubits; q++) {
+            const slot = document.createElement('div');
+            slot.className = 'gate-slot';
+            slot.dataset.step = s;
+            slot.dataset.qubit = q;
+
+            slot.addEventListener('dragover', (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; slot.classList.add('drag-over'); });
+            slot.addEventListener('dragleave', () => slot.classList.remove('drag-over'));
+            slot.addEventListener('drop', (e) => { e.preventDefault(); slot.classList.remove('drag-over'); placeGate(e.dataTransfer.getData('text/plain'), s, q); });
+
+            const cell = circuit[s][q];
+            if (cell && cell.display !== 'connector') {
+                const gateEl = document.createElement('div');
+                gateEl.className = 'placed-gate';
+                if (cell.isTwoQubit) gateEl.classList.add('two-qubit-gate');
+                if (cell.isThreeQubit) gateEl.classList.add('three-qubit-gate');
+                if (ROTATION_GATES.includes(cell.gate)) gateEl.classList.add('rotation-gate');
+                if (CTRL_ROTATION_GATES.includes(cell.gate)) { gateEl.classList.add('rotation-gate'); gateEl.classList.add('two-qubit-gate'); }
+
+                gateEl.textContent = cell.symbol || cell.gate;
+
+                if (cell.params && cell.params.theta !== undefined && (ROTATION_GATES.includes(cell.gate) || CTRL_ROTATION_GATES.includes(cell.gate))) {
+                    const thetaEl = document.createElement('div');
+                    thetaEl.className = 'gate-theta';
+                    thetaEl.textContent = formatAngle(cell.params.theta);
+                    gateEl.appendChild(thetaEl);
+                }
+
+                const removeBtn = document.createElement('div');
+                removeBtn.className = 'remove-gate';
+                removeBtn.textContent = '\u00d7';
+                removeBtn.addEventListener('click', (e) => { e.stopPropagation(); removeGate(s, q); });
+                gateEl.appendChild(removeBtn);
+
+                gateEl.addEventListener('mouseenter', () => { const info = gateCatalogue.find(x => x.name === cell.gate); if (info) showGateInfo(info); });
+                gateEl.addEventListener('mouseleave', hideGateInfo);
+                slot.appendChild(gateEl);
+            } else if (cell && cell.display === 'connector') {
+                const dot = document.createElement('div');
+                dot.className = 'control-dot';
+                if (cell.isThreeQubit) dot.classList.add('three-qubit-dot');
+                dot.addEventListener('click', () => removeGate(s, cell.linkedQubit));
+                slot.appendChild(dot);
+            }
+
+            stepEl.appendChild(slot);
+        }
+        stepsEl.appendChild(stepEl);
+    }
+
+    requestAnimationFrame(() => drawConnectors());
+    document.getElementById('circuit-empty').style.display = getGateCount() === 0 ? 'flex' : 'none';
+    updateStats();
+}
+
+function drawConnectors() {
+    document.querySelectorAll('.two-qubit-connector').forEach(el => el.remove());
+    const drawn = new Set();
+
+    circuit.forEach((step, si) => {
+        step.forEach((cell, qi) => {
+            if (!cell || cell.display === 'connector') return;
+            const key = `${si}-${qi}`;
+            if (drawn.has(key)) return;
+            drawn.add(key);
+
+            let allQubits = [];
+            if (cell.isTwoQubit && cell.control !== undefined && cell.target !== undefined) {
+                allQubits = [cell.control, cell.target];
+            } else if (cell.isThreeQubit && cell.control !== undefined && cell.control2 !== undefined && cell.target !== undefined) {
+                allQubits = [cell.control, cell.control2, cell.target];
+            }
+            if (allQubits.length < 2) return;
+
+            const minQ = Math.min(...allQubits);
+            const maxQ = Math.max(...allQubits);
+            const stepEl = document.getElementById('circuit-steps').children[si];
+            if (!stepEl) return;
+            const topSlot = stepEl.children[minQ];
+            const botSlot = stepEl.children[maxQ];
+            if (!topSlot || !botSlot) return;
+
+            const line = document.createElement('div');
+            line.className = 'two-qubit-connector';
+            if (cell.isThreeQubit) line.classList.add('three-qubit-connector');
+            line.style.top = (topSlot.offsetTop + topSlot.offsetHeight / 2) + 'px';
+            line.style.height = (botSlot.offsetTop + botSlot.offsetHeight / 2 - topSlot.offsetTop - topSlot.offsetHeight / 2) + 'px';
+            stepEl.appendChild(line);
+        });
+    });
+}
+
+// ===== GATE PLACEMENT =====
+function placeGate(gateName, step, qubit) {
+    const gateInfo = gateCatalogue.find(x => x.name === gateName);
+    if (!gateInfo) return;
+
+    if (gateInfo.num_qubits === 3) { placeThreeQubitGate(gateInfo, step, qubit); return; }
+    if (gateInfo.num_qubits === 2) { placeTwoQubitGate(gateInfo, step, qubit); return; }
+
+    if (gateInfo.parameterized) {
+        const isU3 = gateInfo.multi_param;
+        openParamModal(gateInfo, isU3, (params) => {
+            circuit[step][qubit] = { gate: gateInfo.name, symbol: gateInfo.symbol, params, isTwoQubit: false, isThreeQubit: false };
+            renderCircuit(); runSimulation();
+        });
+        return;
+    }
+
+    circuit[step][qubit] = { gate: gateInfo.name, symbol: gateInfo.symbol, params: {}, isTwoQubit: false, isThreeQubit: false };
+    renderCircuit(); runSimulation();
+}
+
+function placeTwoQubitGate(gateInfo, step, qubit) {
+    let target = qubit + 1 < numQubits ? qubit + 1 : qubit - 1;
+    if (target < 0) return;
+    circuit[step][qubit] = null; circuit[step][target] = null;
+
+    const isParam = gateInfo.parameterized;
+    const place = (params) => {
+        const control = qubit;
+        circuit[step][control] = { gate: gateInfo.name, symbol: gateInfo.symbol, params, isTwoQubit: true, isThreeQubit: false, control, target };
+        circuit[step][target] = { gate: gateInfo.name, display: 'connector', isTwoQubit: true, isThreeQubit: false, linkedQubit: control, control, target };
+        renderCircuit(); runSimulation();
+    };
+
+    if (isParam) {
+        openParamModal(gateInfo, false, (params) => place(params));
+    } else {
+        place({});
+    }
+}
+
+function placeThreeQubitGate(gateInfo, step, qubit) {
+    // Need 3 adjacent qubits: control=qubit, control2=qubit+1, target=qubit+2
+    let q0 = qubit, q1 = qubit + 1, q2 = qubit + 2;
+    if (q2 >= numQubits) { q0 = Math.max(0, numQubits - 3); q1 = q0 + 1; q2 = q0 + 2; }
+    if (q2 >= numQubits) return;
+
+    circuit[step][q0] = null; circuit[step][q1] = null; circuit[step][q2] = null;
+
+    const control = q0, control2 = q1, target = q2;
+    circuit[step][target] = { gate: gateInfo.name, symbol: gateInfo.symbol, params: {}, isTwoQubit: false, isThreeQubit: true, control, control2, target };
+    circuit[step][control] = { gate: gateInfo.name, display: 'connector', isTwoQubit: false, isThreeQubit: true, linkedQubit: target, control, control2, target };
+    circuit[step][control2] = { gate: gateInfo.name, display: 'connector', isTwoQubit: false, isThreeQubit: true, linkedQubit: target, control, control2, target };
+    renderCircuit(); runSimulation();
+}
+
+function removeGate(step, qubit) {
+    const cell = circuit[step][qubit];
+    if (!cell) return;
+    if (cell.isTwoQubit) {
+        const other = cell.control === qubit ? cell.target : cell.control;
+        if (other !== undefined) circuit[step][other] = null;
+    }
+    if (cell.isThreeQubit) {
+        if (cell.control !== undefined) circuit[step][cell.control] = null;
+        if (cell.control2 !== undefined) circuit[step][cell.control2] = null;
+        if (cell.target !== undefined) circuit[step][cell.target] = null;
+    }
+    circuit[step][qubit] = null;
+    renderCircuit();
+    if (getGateCount() > 0) runSimulation(); else clearResults();
+}
+
+// ===== PARAM MODAL =====
+function openParamModal(gateInfo, isMultiParam, callback) {
+    paramCallback = callback;
+    document.getElementById('param-modal-title').textContent = `${gateInfo.name} Parameters`;
+    document.getElementById('param-theta').value = Math.PI.toFixed(5);
+    document.getElementById('param-extra-fields').style.display = isMultiParam ? 'block' : 'none';
+    if (isMultiParam) { document.getElementById('param-phi').value = '0'; document.getElementById('param-lambda').value = '0'; }
+    document.getElementById('param-modal').classList.add('active');
+    document.getElementById('param-theta').focus();
+}
+
+function setPreset(val) { document.getElementById('param-theta').value = val.toFixed(5); }
+
+function confirmParam() {
+    const theta = parseFloat(document.getElementById('param-theta').value) || 0;
+    const params = { theta };
+    if (document.getElementById('param-extra-fields').style.display !== 'none') {
+        params.phi = parseFloat(document.getElementById('param-phi').value) || 0;
+        params['lambda'] = parseFloat(document.getElementById('param-lambda').value) || 0;
+    }
+    document.getElementById('param-modal').classList.remove('active');
+    if (paramCallback) paramCallback(params);
+    paramCallback = null;
+}
+
+function cancelParam() { document.getElementById('param-modal').classList.remove('active'); paramCallback = null; }
+
+function formatAngle(theta) {
+    const pi = Math.PI;
+    if (Math.abs(theta - pi) < 0.001) return '\u03c0';
+    if (Math.abs(theta + pi) < 0.001) return '-\u03c0';
+    if (Math.abs(theta - pi/2) < 0.001) return '\u03c0/2';
+    if (Math.abs(theta + pi/2) < 0.001) return '-\u03c0/2';
+    if (Math.abs(theta - pi/4) < 0.001) return '\u03c0/4';
+    if (Math.abs(theta - pi/3) < 0.001) return '\u03c0/3';
+    if (Math.abs(theta + pi/4) < 0.001) return '-\u03c0/4';
+    if (Math.abs(theta + pi/8) < 0.001) return '-\u03c0/8';
+    if (Math.abs(theta - pi/8) < 0.001) return '\u03c0/8';
+    if (Math.abs(theta - 2*pi) < 0.001) return '2\u03c0';
+    return theta.toFixed(2);
+}
+
+// ===== VIZ TABS =====
+function switchVizTab(tabName) {
+    document.querySelectorAll('.viz-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tabName));
+    document.querySelectorAll('.viz-tab-content').forEach(c => c.classList.remove('active'));
+    document.getElementById('viz-' + tabName).classList.add('active');
+    if (lastSimData) renderVizTab(tabName, lastSimData);
+}
+
+function renderVizTab(tabName, data) {
+    if (tabName === 'bloch') renderBlochSpheres(data);
+    if (tabName === 'polar') renderPolarTab(data);
+    if (tabName === 'probdist') renderProbDistTab(data);
+    if (tabName === 'histogram') renderHistogram(data);
+}
+
+// ===== SIMULATION =====
+async function runSimulation() {
+    if (simulating) return;
+    simulating = true;
+
+    const shots = parseInt(document.getElementById('shots-input').value) || 0;
+    const payload = { num_qubits: numQubits, circuit: [], shots: shots > 0 ? shots : null };
+
+    circuit.forEach((step) => {
+        const ops = [], processed = new Set();
+        step.forEach((cell, q) => {
+            if (!cell || cell.display === 'connector' || processed.has(q)) return;
+            const op = { gate: cell.gate, target: cell.isThreeQubit ? cell.target : (cell.isTwoQubit ? cell.target : q), params: cell.params || {} };
+            if (cell.isTwoQubit) { op.control = cell.control; processed.add(cell.target); processed.add(cell.control); }
+            if (cell.isThreeQubit) { op.control = cell.control; op.control2 = cell.control2; processed.add(cell.target); processed.add(cell.control); processed.add(cell.control2); }
+            ops.push(op);
+            processed.add(q);
+        });
+        if (ops.length > 0) payload.circuit.push(ops);
+    });
+
+    if (payload.circuit.length === 0) payload.circuit = [[]];
+
+    try {
+        const res = await fetch('/simulate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        const data = await res.json();
+        if (data.error) console.error('Simulation error:', data.error);
+        else { lastSimData = data; displayResults(data); }
+    } catch (err) { console.error('Fetch error:', err); }
+    simulating = false;
+}
+
+// ===== DISPLAY RESULTS =====
+function displayResults(data) {
+    document.getElementById('no-results').style.display = 'none';
+    document.getElementById('results-content').style.display = 'block';
+
+    const entropy = data.entanglement_entropy;
+    document.getElementById('entropy-value').textContent = entropy.toFixed(3);
+    document.getElementById('entropy-fill').style.width = `${Math.min(entropy * 100, 100)}%`;
+    const entEl = document.getElementById('stat-entanglement');
+    if (entropy > 0.01) {
+        entEl.textContent = 'Entangled'; entEl.className = 'entanglement-status entangled';
+        document.getElementById('entropy-note').textContent = `S = ${entropy.toFixed(4)} (entangled state)`;
+    } else {
+        entEl.textContent = 'Separable'; entEl.className = 'entanglement-status separable';
+        document.getElementById('entropy-note').textContent = 'S = 0 (separable state)';
+    }
+
+    renderStateVectorList(data);
+    renderProbList(data);
+
+    let activeTab = document.querySelector('.viz-tab.active').dataset.tab;
+    // Auto-switch to histogram tab when shots data arrives
+    if (data.counts && activeTab !== 'histogram') {
+        switchVizTab('histogram');
+        activeTab = 'histogram';
+    }
+    renderVizTab(activeTab, data);
+
+    updateStats();
+    document.getElementById('stat-gates').textContent = data.num_gates;
+}
+
+function clearResults() {
+    document.getElementById('no-results').style.display = 'flex';
+    document.getElementById('results-content').style.display = 'none';
+    // Reset all viz tabs to empty state
+    ['bloch-empty','polar-empty','pd-empty','hist-empty'].forEach(id => {
+        const el = document.getElementById(id); if (el) el.style.display = 'flex';
+    });
+    ['bloch-viz','polar-viz','pd-viz','hist-viz'].forEach(id => {
+        const el = document.getElementById(id); if (el) el.style.display = 'none';
+    });
+    const entEl = document.getElementById('stat-entanglement');
+    entEl.textContent = 'Separable'; entEl.className = 'entanglement-status separable';
+    lastSimData = null; updateStats();
+}
+
+function formatComplex(re, im) {
+    const t = 0.0001;
+    if (Math.abs(re) < t && Math.abs(im) < t) return '0';
+    if (Math.abs(im) < t) return re.toFixed(3);
+    if (Math.abs(re) < t) return `${im.toFixed(3)}i`;
+    return `${re.toFixed(3)} ${im >= 0 ? '+' : '-'} ${Math.abs(im).toFixed(3)}i`;
+}
+
+// ===== STATE VECTOR LIST (right panel) =====
+let svFilterMode = 'nonzero';
+
+function filterStateVector(mode) {
+    svFilterMode = mode;
+    document.querySelectorAll('.sv-filter-btn').forEach(b => b.classList.toggle('active', b.dataset.filter === mode));
+    if (lastSimData) renderStateVectorList(lastSimData);
+}
+
+function renderStateVectorList(data) {
+    const svList = document.getElementById('state-vector-list');
+    svList.innerHTML = '';
+    const sv = data.state_vector;
+    const filtered = svFilterMode === 'all' ? sv : sv.filter(e => e.probability > 0.0001);
+
+    if (filtered.length === 0) {
+        svList.innerHTML = '<div style="color:var(--text-dim);font-size:10px;padding:8px;">No non-zero amplitudes</div>';
+        return;
+    }
+
+    filtered.forEach(entry => {
+        const [re, im] = entry.amplitude;
+        const div = document.createElement('div');
+        div.className = 'state-entry';
+        div.innerHTML = `<span class="state-label">|${entry.label}\u27E9</span><div class="state-bar-container"><div class="state-bar" style="width:${entry.probability*100}%"></div></div><span class="state-prob">${(entry.probability*100).toFixed(1)}%</span><span class="state-amplitude">${formatComplex(re,im)}</span>`;
+        svList.appendChild(div);
+    });
+}
+
+function renderProbList(data) {
+    const probEl = document.getElementById('prob-histogram');
+    probEl.innerHTML = '';
+    const entries = Object.entries(data.probabilities).filter(([,p]) => p > 0.0001);
+    entries.sort((a, b) => b[1] - a[1]); // Sort by probability descending
+    entries.forEach(([label, prob]) => {
+        const div = document.createElement('div');
+        div.className = 'state-entry';
+        div.innerHTML = `<span class="state-label">|${label}\u27E9</span><div class="state-bar-container"><div class="state-bar" style="width:${prob*100}%"></div></div><span class="state-prob">${(prob*100).toFixed(1)}%</span>`;
+        probEl.appendChild(div);
+    });
+}
+
+// ===== BLOCH SPHERES (expandable) =====
+let expandedBloch = null;
+
+// Ensure overlay exists once
+(function initBlochOverlay() {
+    const ov = document.createElement('div');
+    ov.id = 'bloch-overlay';
+    ov.className = 'bloch-expand-overlay';
+    ov.onclick = collapseBloch;
+    document.body.appendChild(ov);
+})();
+
+function renderBlochSpheres(data) {
+    document.getElementById('bloch-empty').style.display = 'none';
+    document.getElementById('bloch-viz').style.display = 'flex';
+    const container = document.getElementById('bloch-viz');
+    container.innerHTML = '';
+
+    const numQ = data.bloch_vectors.length;
+    const size = numQ <= 2 ? 180 : (numQ <= 4 ? 150 : (numQ <= 6 ? 120 : 95));
+
+    data.bloch_vectors.forEach((vec, i) => {
+        const card = document.createElement('div');
+        card.className = 'bloch-sphere-card';
+
+        const canvas = document.createElement('canvas');
+        canvas.className = 'bloch-canvas-large';
+        canvas.width = size; canvas.height = size;
+        const rot = getBlochRotation(i);
+        drawBlochSphere3D(canvas, vec, rot.az, rot.el);
+        attachBlochDrag(canvas, vec, rot);
+
+        const label = document.createElement('div'); label.className = 'bloch-card-label'; label.textContent = `q${i}`;
+        const coords = document.createElement('div'); coords.className = 'bloch-card-coords';
+        coords.textContent = `(${vec[0].toFixed(2)}, ${vec[1].toFixed(2)}, ${vec[2].toFixed(2)})`;
+        const stateDesc = document.createElement('div'); stateDesc.className = 'bloch-card-state';
+        stateDesc.textContent = describeBlochState(vec);
+
+        // Expand link
+        const expandLink = document.createElement('div');
+        expandLink.className = 'bloch-expand-link';
+        expandLink.textContent = 'Expand';
+        expandLink.onclick = function(e) { e.preventDefault(); e.stopPropagation(); expandBloch(vec, i); };
+
+        card.appendChild(canvas); card.appendChild(label); card.appendChild(coords);
+        card.appendChild(stateDesc); card.appendChild(expandLink);
+        container.appendChild(card);
+    });
+}
+
+function attachBlochDrag(canvas, vec, rot) {
+    let active = false, lx = 0, ly = 0;
+    canvas.onmousedown = function(e) { active = true; lx = e.clientX; ly = e.clientY; e.preventDefault(); };
+    document.addEventListener('mousemove', function(e) {
+        if (!active) return;
+        rot.az += (e.clientX - lx) * 0.012;
+        rot.el = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, rot.el + (e.clientY - ly) * 0.012));
+        lx = e.clientX; ly = e.clientY;
+        drawBlochSphere3D(canvas, vec, rot.az, rot.el);
+    });
+    document.addEventListener('mouseup', function() { active = false; });
+}
+
+function expandBloch(vec, qi) {
+    collapseBloch();
+    document.getElementById('bloch-overlay').classList.add('active');
+
+    const box = document.createElement('div');
+    box.id = 'bloch-expanded';
+    box.className = 'bloch-sphere-card expanded';
+    box.onclick = function(e) { e.stopPropagation(); };
+
+    const canvas = document.createElement('canvas');
+    canvas.className = 'bloch-canvas-large';
+    canvas.width = 360; canvas.height = 360;
+    const rot = { az: getBlochRotation(qi).az, el: getBlochRotation(qi).el };
+    drawBlochSphere3D(canvas, vec, rot.az, rot.el);
+    attachBlochDrag(canvas, vec, rot);
+    box.appendChild(canvas);
+
+    box.insertAdjacentHTML('beforeend', `
+        <div style="font:700 18px var(--font-mono);color:var(--plasma);margin-top:10px;">Qubit ${qi}</div>
+        <div style="font:12px var(--font-mono);color:var(--text-secondary);margin-top:4px;">
+            x = ${vec[0].toFixed(4)} &nbsp; y = ${vec[1].toFixed(4)} &nbsp; z = ${vec[2].toFixed(4)}
+        </div>
+        <div style="font:12px var(--font-mono);color:var(--accent-amber);margin-top:2px;">${describeBlochState(vec)}</div>
+        <div style="font:9px var(--font-mono);color:var(--text-dim);margin-top:8px;">Drag to rotate &middot; Click outside or Esc to close</div>
+    `);
+
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'btn btn-reset';
+    closeBtn.style.marginTop = '10px';
+    closeBtn.textContent = 'Close';
+    closeBtn.onclick = collapseBloch;
+    box.appendChild(closeBtn);
+
+    document.body.appendChild(box);
+    expandedBloch = box;
+}
+
+function collapseBloch() {
+    const ov = document.getElementById('bloch-overlay');
+    if (ov) ov.classList.remove('active');
+    if (expandedBloch) { expandedBloch.remove(); expandedBloch = null; }
+}
+
+function describeBlochState(vec) {
+    const [x, y, z] = vec, len = Math.sqrt(x * x + y * y + z * z);
+    if (len < 0.05) return 'maximally mixed';
+    if (z > 0.95) return '|0\u27E9'; if (z < -0.95) return '|1\u27E9';
+    if (x > 0.95) return '|+\u27E9'; if (x < -0.95) return '|-\u27E9';
+    if (y > 0.95) return '|+i\u27E9'; if (y < -0.95) return '|-i\u27E9';
+    if (len < 0.5) return 'partially mixed';
+    const theta = Math.acos(Math.max(-1, Math.min(1, z / len)));
+    const phi = Math.atan2(y, x);
+    return `\u03b8=${(theta * 180 / Math.PI).toFixed(0)}\u00b0 \u03c6=${(phi * 180 / Math.PI).toFixed(0)}\u00b0`;
+}
+
+function drawBlochSphere3D(canvas, vec, az, el) {
+    const ctx = canvas.getContext('2d'), w = canvas.width, h = canvas.height, cx = w / 2, cy = h / 2;
+    const r = Math.min(w, h) * 0.38;
+    const fontSize = w > 200 ? 11 : 9;
+    ctx.clearRect(0, 0, w, h);
+
+    function project(px, py, pz) {
+        let x1 = px * Math.cos(az) + pz * Math.sin(az), z1 = -px * Math.sin(az) + pz * Math.cos(az), y1 = py;
+        let y2 = y1 * Math.cos(el) - z1 * Math.sin(el);
+        return { x: cx + x1 * r, y: cy - y2 * r };
+    }
+
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, 2 * Math.PI);
+    ctx.fillStyle = 'rgba(10,16,32,0.9)'; ctx.fill();
+    ctx.strokeStyle = 'rgba(184,115,51,0.25)'; ctx.lineWidth = 1; ctx.stroke();
+
+    function drawCircle(getPoint, color) {
+        ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = 0.7;
+        for (let i = 0; i <= 64; i++) {
+            const t = (i / 64) * 2 * Math.PI, pt = getPoint(t), p = project(pt.x, pt.y, pt.z);
+            i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y);
+        }
+        ctx.stroke();
+    }
+    drawCircle(t => ({ x: Math.cos(t), y: Math.sin(t), z: 0 }), 'rgba(184,115,51,0.2)');
+    drawCircle(t => ({ x: Math.cos(t), y: 0, z: Math.sin(t) }), 'rgba(184,115,51,0.12)');
+    drawCircle(t => ({ x: 0, y: Math.cos(t), z: Math.sin(t) }), 'rgba(184,115,51,0.12)');
+
+    [{ p: [1,0,0], n: [-1,0,0], l: '+X', nl: '-X', c: 'rgba(255,100,100,0.4)' },
+     { p: [0,1,0], n: [0,-1,0], l: '+Y', nl: '-Y', c: 'rgba(100,255,100,0.4)' },
+     { p: [0,0,1], n: [0,0,-1], l: '|0\u27E9', nl: '|1\u27E9', c: 'rgba(100,100,255,0.4)' }
+    ].forEach(axis => {
+        const pp = project(...axis.p), pn = project(...axis.n);
+        ctx.beginPath(); ctx.moveTo(pp.x, pp.y); ctx.lineTo(pn.x, pn.y);
+        ctx.strokeStyle = axis.c; ctx.lineWidth = 0.8; ctx.stroke();
+        ctx.font = `${fontSize}px JetBrains Mono`; ctx.fillStyle = axis.c;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        const dx = pp.x - cx, dy = pp.y - cy, d = Math.sqrt(dx * dx + dy * dy);
+        if (d > 1) {
+            ctx.fillText(axis.l, pp.x + dx / d * 14, pp.y + dy / d * 14);
+            const dnx = pn.x - cx, dny = pn.y - cy, nd = Math.sqrt(dnx * dnx + dny * dny);
+            if (nd > 1) ctx.fillText(axis.nl, pn.x + dnx / nd * 14, pn.y + dny / nd * 14);
+        }
+    });
+
+    const [bx, by, bz] = vec, stP = project(bx, by, bz);
+    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(stP.x, stP.y);
+    ctx.strokeStyle = 'rgba(0,200,255,0.8)'; ctx.lineWidth = 2; ctx.stroke();
+
+    const glowR = w > 200 ? 25 : 18;
+    const glow = ctx.createRadialGradient(stP.x, stP.y, 0, stP.x, stP.y, glowR);
+    glow.addColorStop(0, 'rgba(0,200,255,0.5)'); glow.addColorStop(1, 'rgba(0,200,255,0)');
+    ctx.beginPath(); ctx.arc(stP.x, stP.y, glowR, 0, 2 * Math.PI); ctx.fillStyle = glow; ctx.fill();
+
+    const ptR = w > 200 ? 7 : 5;
+    ctx.beginPath(); ctx.arc(stP.x, stP.y, ptR, 0, 2 * Math.PI);
+    ctx.fillStyle = '#00c8ff'; ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.stroke();
+
+    const eqP = project(bx, by, 0);
+    ctx.beginPath(); ctx.setLineDash([2, 2]); ctx.moveTo(stP.x, stP.y); ctx.lineTo(eqP.x, eqP.y);
+    ctx.strokeStyle = 'rgba(0,200,255,0.25)'; ctx.lineWidth = 1; ctx.stroke(); ctx.setLineDash([]);
+    ctx.beginPath(); ctx.arc(eqP.x, eqP.y, 2.5, 0, 2 * Math.PI);
+    ctx.fillStyle = 'rgba(0,200,255,0.3)'; ctx.fill();
+}
+
+// ===== COLOR UTILITY =====
+function generateColorRGBs(n) {
+    const colors = [];
+    for (let i = 0; i < n; i++) {
+        const hue = (200 + i * (300 / Math.max(n, 1))) % 360;
+        const s = 0.75, l = 0.6;
+        const c = (1 - Math.abs(2 * l - 1)) * s;
+        const x = c * (1 - Math.abs((hue / 60) % 2 - 1));
+        const m = l - c / 2;
+        let r = 0, g = 0, b = 0;
+        if (hue < 60) { r = c; g = x; }
+        else if (hue < 120) { r = x; g = c; }
+        else if (hue < 180) { g = c; b = x; }
+        else if (hue < 240) { g = x; b = c; }
+        else if (hue < 300) { r = x; b = c; }
+        else { r = c; b = x; }
+        colors.push([Math.round((r + m) * 255), Math.round((g + m) * 255), Math.round((b + m) * 255)]);
+    }
+    return colors;
+}
+
+function rgba(rgb, a) { return `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${a})`; }
+
+// ===== VISUALIZATION RENDERERS =====
+let barZoom = { sv: 1, hist: 1 };
+let polarPan = { x: 0, y: 0, zoom: 1 };
+let polarInteractionSetup = false;
+
+function renderPolarTab(data) {
+    document.getElementById('polar-empty').style.display = 'none';
+    document.getElementById('polar-viz').style.display = 'flex';
+    setTimeout(() => {
+        drawPolarDiagram(data);
+        if (!polarInteractionSetup) { setupPolarInteraction(data); polarInteractionSetup = true; }
+    }, 80);
+}
+
+function renderProbDistTab(data) {
+    document.getElementById('pd-empty').style.display = 'none';
+    document.getElementById('pd-viz').style.display = 'flex';
+    setTimeout(() => {
+        drawBarChartZoomable(data, 'sv-bars-canvas', 'bars-wrap', 'sv');
+    }, 80);
+}
+
+function getWrapSize(wrapId) {
+    const wrap = document.getElementById(wrapId);
+    const w = wrap.clientWidth || wrap.offsetWidth || 600;
+    const h = wrap.clientHeight || wrap.offsetHeight || 300;
+    return [Math.max(w, 200), Math.max(h, 200)];
+}
+
+// ===== POLAR DIAGRAM =====
+function drawPolarDiagram(data) {
+    const canvas = document.getElementById('sv-polar-canvas');
+    const [wrapW, wrapH] = getWrapSize('polar-wrap');
+    const z = polarPan.zoom;
+    const cw = wrapW, ch = wrapH;
+    canvas.width = cw; canvas.height = ch;
+    canvas.style.width = cw + 'px'; canvas.style.height = ch + 'px';
+
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, cw, ch);
+
+    // Only draw nonzero states
+    const nonzero = data.state_vector.filter(e => {
+        const [re, im] = e.amplitude;
+        return Math.sqrt(re*re + im*im) > 0.001;
+    });
+    if (nonzero.length === 0) return;
+
+    const cx = cw / 2 + polarPan.x, cy = ch / 2 + polarPan.y;
+    const baseR = Math.min(cw, ch) * 0.32;
+    const R = baseR * z;
+
+    // Background circle
+    ctx.beginPath(); ctx.arc(cx, cy, R + 4, 0, 2*Math.PI);
+    ctx.fillStyle = 'rgba(10,16,32,0.5)'; ctx.fill();
+
+    // Concentric rings at 25%, 50%, 75%, 100% amplitude
+    [0.25, 0.5, 0.75, 1.0].forEach(frac => {
+        ctx.beginPath(); ctx.arc(cx, cy, R * frac, 0, 2*Math.PI);
+        ctx.strokeStyle = 'rgba(184,115,51,0.18)'; ctx.lineWidth = 1; ctx.stroke();
+    });
+    // Ring labels on right side
+    ctx.font = '10px JetBrains Mono'; ctx.fillStyle = 'rgba(184,115,51,0.4)'; ctx.textAlign = 'left';
+    [0.25, 0.5, 0.75, 1.0].forEach(frac => {
+        ctx.fillText(Math.round(frac*100) + '%', cx + R*frac + 4, cy - 4);
+    });
+
+    // Phase lines + labels at 0, pi/2, pi, 3pi/2
+    const phaseMarks = [
+        { a: 0, l: '0' }, { a: Math.PI/2, l: '\u03c0/2' },
+        { a: Math.PI, l: '\u03c0' }, { a: 3*Math.PI/2, l: '-\u03c0/2' }
+    ];
+    phaseMarks.forEach(({ a, l }) => {
+        ctx.beginPath(); ctx.moveTo(cx, cy);
+        ctx.lineTo(cx + Math.cos(a)*R, cy - Math.sin(a)*R);
+        ctx.strokeStyle = 'rgba(184,115,51,0.12)'; ctx.lineWidth = 1; ctx.stroke();
+        ctx.font = '11px JetBrains Mono'; ctx.fillStyle = 'rgba(184,115,51,0.5)';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(l, cx + Math.cos(a)*(R+18), cy - Math.sin(a)*(R+18));
+    });
+
+    // Use a single bright color scheme — cyan gradient
+    const useMultiColor = nonzero.length <= 8;
+    const colors = useMultiColor ? generateColorRGBs(data.state_vector.length) : null;
+
+    // Draw each state
+    nonzero.forEach((entry, _idx) => {
+        const [re, im] = entry.amplitude;
+        const mag = Math.sqrt(re*re + im*im);
+        const phase = Math.atan2(im, re);
+        const px = cx + Math.cos(phase) * mag * R;
+        const py = cy - Math.sin(phase) * mag * R;
+
+        // Get color
+        const origIdx = data.state_vector.indexOf(entry);
+        const col = useMultiColor ? colors[origIdx] : [0, 200, 255];
+
+        // Line from center
+        ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(px, py);
+        ctx.strokeStyle = rgba(col, 0.35); ctx.lineWidth = 1.5; ctx.stroke();
+
+        // Dot
+        const dotR = 4 + mag * 5;
+        ctx.beginPath(); ctx.arc(px, py, dotR, 0, 2*Math.PI);
+        ctx.fillStyle = rgba(col, 0.9); ctx.fill();
+        ctx.strokeStyle = rgba(col, 0.4); ctx.lineWidth = dotR * 2;
+        ctx.beginPath(); ctx.arc(px, py, dotR + 3, 0, 2*Math.PI); ctx.stroke();
+
+        // Label
+        ctx.font = 'bold 11px JetBrains Mono'; ctx.fillStyle = rgba(col, 1);
+        ctx.textAlign = 'center';
+        ctx.fillText(`|${entry.label}\u27E9  ${(mag*mag*100).toFixed(1)}%`, px, py - dotR - 8);
+    });
+}
+
+function setupPolarInteraction(data) {
+    const wrap = document.getElementById('polar-wrap');
+    wrap.addEventListener('wheel', (e) => e.preventDefault(), { passive: false });
+    let dragging = false, lx = 0, ly = 0;
+    wrap.onmousedown = (e) => { dragging = true; lx = e.clientX; ly = e.clientY; };
+    document.addEventListener('mousemove', (e) => {
+        if (!dragging) return;
+        polarPan.x += e.clientX - lx; polarPan.y += e.clientY - ly;
+        lx = e.clientX; ly = e.clientY;
+        drawPolarDiagram(lastSimData);
+    });
+    document.addEventListener('mouseup', () => { dragging = false; });
+}
+
+function zoomPolar(dir) {
+    if (!lastSimData) return;
+    if (dir === 0) { polarPan = { x: 0, y: 0, zoom: 1 }; }
+    else { polarPan.zoom = Math.max(0.5, Math.min(4, polarPan.zoom + dir * 0.3)); }
+    document.getElementById('polar-zoom-level').textContent = polarPan.zoom.toFixed(1) + 'x';
+    drawPolarDiagram(lastSimData);
+}
+
+// ===== BAR CHART (prob dist + histogram) =====
+function zoomBars(key, dir) {
+    if (!lastSimData) return;
+    if (dir === 0) { barZoom[key] = 1; }
+    else { barZoom[key] = Math.max(1, Math.min(5, (barZoom[key] || 1) + dir * 0.5)); }
+    document.getElementById(key + '-zoom-level').textContent = barZoom[key].toFixed(1) + 'x';
+    if (key === 'sv') drawBarChartZoomable(lastSimData, 'sv-bars-canvas', 'bars-wrap', 'sv');
+    if (key === 'hist') drawBarChartZoomable(lastSimData, 'hist-canvas', 'hist-wrap', 'hist');
+}
+
+function drawBarChartZoomable(data, canvasId, wrapId, zoomKey) {
+    const canvas = document.getElementById(canvasId);
+    const [wrapW, wrapH] = getWrapSize(wrapId);
+    const zoom = barZoom[zoomKey] || 1;
+    const isHist = canvasId === 'hist-canvas';
+
+    let items;
+    if (isHist) {
+        const tot = data._totalShots || 1;
+        items = Object.entries(data.counts || {}).map(([l, c]) => ({ label: l, prob: c / tot, count: c }));
+    } else {
+        items = data.state_vector.map(e => ({ label: e.label, prob: e.probability }));
+    }
+    // For prob dist, filter zero entries when many items
+    if (!isHist && items.length > 16) {
+        items = items.filter(e => e.prob > 0.0005);
+    }
+    if (items.length === 0) return;
+
+    const n = items.length;
+    const BAR_W = Math.max(36, 48 * zoom);
+    const GAP = Math.max(4, 6 * zoom);
+    const canvasW = Math.max(wrapW, n * (BAR_W + GAP) + 80);
+    const canvasH = wrapH;
+    canvas.width = canvasW; canvas.height = canvasH;
+    canvas.style.width = canvasW + 'px'; canvas.style.height = canvasH + 'px';
+
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvasW, canvasH);
+
+    const pad = { top: 28, right: 20, bottom: 52, left: 50 };
+    const chartW = canvasW - pad.left - pad.right;
+    const chartH = canvasH - pad.top - pad.bottom;
+    const maxVal = isHist ? Math.max(...items.map(x => x.prob), 0.01) : Math.max(...items.map(x => x.prob), 0.01);
+    const totalGap = (n + 1) * GAP;
+    const actualBarW = Math.min(BAR_W, (chartW - totalGap) / n);
+    const startX = pad.left + (chartW - n * actualBarW - (n - 1) * GAP) / 2;
+
+    // Y-axis gridlines
+    for (let i = 0; i <= 5; i++) {
+        const frac = i / 5;
+        const y = pad.top + chartH * (1 - frac);
+        ctx.beginPath(); ctx.moveTo(pad.left - 4, y); ctx.lineTo(canvasW - pad.right, y);
+        ctx.strokeStyle = 'rgba(184,115,51,0.1)'; ctx.lineWidth = 1; ctx.stroke();
+        ctx.font = '10px JetBrains Mono'; ctx.fillStyle = 'rgba(184,115,51,0.45)';
+        ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+        ctx.fillText(Math.round(maxVal * frac * 100) + '%', pad.left - 8, y);
+    }
+
+    // Bars
+    const barColors = generateColorRGBs(n);
+    items.forEach((item, i) => {
+        const x = startX + i * (actualBarW + GAP);
+        const barH = Math.max((item.prob / maxVal) * chartH, item.prob > 0 ? 2 : 0);
+        const y = pad.top + chartH - barH;
+
+        // Bar body
+        const grad = ctx.createLinearGradient(x, y, x, y + barH);
+        grad.addColorStop(0, rgba(barColors[i], 1));
+        grad.addColorStop(1, rgba(barColors[i], 0.4));
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        const r = Math.min(4, actualBarW / 3);
+        ctx.moveTo(x + r, y); ctx.lineTo(x + actualBarW - r, y);
+        ctx.quadraticCurveTo(x + actualBarW, y, x + actualBarW, y + r);
+        ctx.lineTo(x + actualBarW, y + barH); ctx.lineTo(x, y + barH);
+        ctx.lineTo(x, y + r); ctx.quadraticCurveTo(x, y, x + r, y);
+        ctx.fill();
+
+        // Value above bar
+        if (item.prob > 0.003) {
+            ctx.font = 'bold 10px JetBrains Mono';
+            ctx.fillStyle = rgba(barColors[i], 1);
+            ctx.textAlign = 'center';
+            const txt = isHist ? String(item.count) : (item.prob * 100).toFixed(1) + '%';
+            ctx.fillText(txt, x + actualBarW / 2, y - 7);
+        }
+
+        // X-axis label
+        ctx.save();
+        ctx.translate(x + actualBarW / 2, pad.top + chartH + 8);
+        if (n > 10) ctx.rotate(-0.7);
+        ctx.font = '10px JetBrains Mono';
+        ctx.fillStyle = 'rgba(200,190,180,0.75)';
+        ctx.textAlign = n > 10 ? 'right' : 'center';
+        ctx.textBaseline = 'top';
+        ctx.fillText('|' + item.label + '\u27E9', 0, 0);
+        ctx.restore();
+    });
+}
+
+// ===== HISTOGRAM =====
+function renderHistogram(data) {
+    if (!data.counts) {
+        document.getElementById('hist-empty').style.display = 'flex';
+        document.getElementById('hist-viz').style.display = 'none';
+        return;
+    }
+    document.getElementById('hist-empty').style.display = 'none';
+    document.getElementById('hist-viz').style.display = 'flex';
+    const totalShots = Object.values(data.counts).reduce((a, b) => a + b, 0);
+    document.getElementById('hist-shot-count').textContent = totalShots;
+    data._totalShots = totalShots;
+    barZoom.hist = 1;
+
+    function tryDraw(retries) {
+        const wrap = document.getElementById('hist-wrap');
+        if ((wrap.clientWidth > 20 && wrap.clientHeight > 20) || retries <= 0) {
+            drawBarChartZoomable(data, 'hist-canvas', 'hist-wrap', 'hist');
+            // Zoom controlled by buttons
+        } else {
+            setTimeout(() => tryDraw(retries - 1), 100);
+        }
+    }
+    setTimeout(() => tryDraw(8), 60);
+}
+
+// ===== GATE INFO =====
+function showGateInfo(gateInfo) {
+    const panel = document.getElementById('gate-info-panel');
+    const nameEl = document.getElementById('gate-info-name');
+    nameEl.textContent = gateInfo.name;
+    nameEl.className = 'gate-info-name' + (gateInfo.parameterized ? ' rotation' : '');
+    document.getElementById('gate-info-desc').textContent = gateInfo.description;
+    const mat = gateInfo.matrix;
+    let matStr = '';
+    mat.forEach((row, i) => {
+        matStr += (i === 0 ? '\u250c ' : (i === mat.length - 1 ? '\u2514 ' : '\u2502 '));
+        matStr += row.map(([re, im]) => formatComplex(re, im).padStart(8)).join('  ');
+        matStr += (i === 0 ? ' \u2510' : (i === mat.length - 1 ? ' \u2518' : ' \u2502')) + '\n';
+    });
+    document.getElementById('gate-info-matrix').textContent = matStr;
+    panel.classList.add('visible');
+}
+
+function hideGateInfo() { document.getElementById('gate-info-panel').classList.remove('visible'); }
+
+// ===== KEYBOARD =====
+document.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+    if (e.key === 'r' || e.key === 'R') { e.preventDefault(); resetCircuit(); }
+    if (e.key === 'Enter' && document.getElementById('param-modal').classList.contains('active')) confirmParam();
+    if (e.key === 'Escape') { cancelParam(); collapseBloch(); }
+});
+
+window.addEventListener('resize', () => {
+    if (lastSimData) {
+        const t = document.querySelector('.viz-tab.active').dataset.tab;
+        renderVizTab(t, lastSimData);
+    }
+});
+
+init();
+</script>
+</body>
+</html>
