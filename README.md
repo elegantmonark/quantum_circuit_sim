@@ -1,22 +1,22 @@
-# QSIM -- Quantum Circuit Simulator
+# QSIM: Quantum Circuit Simulator
 
-A production-quality quantum circuit simulator with a visual drag-and-drop circuit builder, interactive Bloch sphere visualization, Shor's algorithm support, and real-time state vector analysis. Built with FastAPI, NumPy, and vanilla JavaScript.
+I made a high quality quantum circuit simulator with a visual drag-and-drop circuit builder, interactive Bloch sphere visualization, Shor's algorithm (and many other circuit template) support, and real-time state vector analysis. Built with FastAPI, NumPy, and vanilla JavaScript.
 
-![QSIM Screenshot](ss/probdist.png)
+![QSIM Screenshot](ss/qsimv1.png)
 
 ## Features
 
-- **Visual Circuit Builder** -- Drag and drop gates onto qubit wires to build quantum circuits
-- **23 Quantum Gates** -- Full gate library including Toffoli, Fredkin, controlled-rotations, and U3
-- **Up to 10 Qubits** -- Simulate Hilbert spaces up to dimension 1024
-- **Real Quantum Math** -- State vector simulation using NumPy with einsum tensor contraction
-- **Pre-built Algorithm Templates** -- Shor's (N=15), Grover's, QFT, Teleportation, and more
-- **Multi-shot Measurement** -- Run circuits N times with shot histogram visualization
-- **Interactive Bloch Spheres** -- Per-qubit 3D Bloch sphere with drag-to-rotate and click-to-expand
-- **Polar Amplitude Diagram** -- Visualize state amplitudes and phases on a polar plot with zoom/pan
-- **Probability Distribution** -- Zoomable bar chart showing measurement probabilities
-- **Entanglement Detection** -- Von Neumann entropy calculation with visual status indicator
-- **Rotation Gate Highlighting** -- Rx, Ry, Rz gates styled in amber to indicate encoded angle information
+- **Visual Circuit Builder** - Drag and drop gates onto qubit wires to build quantum circuits
+- **23 Quantum Gates** - Full gate library including Toffoli, Fredkin, controlled-rotations, and U3
+- **Up to 10 Qubits** - Simulate Hilbert spaces up to dimension 1024
+- **Real Quantum Math** - State vector simulation using NumPy with einsum tensor contraction
+- **Pre-built Algorithm Templates** - Shor's (N=15), Grover's, QFT, Teleportation, and more
+- **Multi-shot Measurement** - Run circuits N times with shot histogram visualization
+- **Interactive Bloch Spheres** - Per-qubit 3D Bloch sphere with drag-to-rotate and click-to-expand
+- **Polar Amplitude Diagram** - Visualize state amplitudes and phases on a polar plot with zoom/pan
+- **Probability Distribution** - Zoomable bar chart showing measurement probabilities
+- **Entanglement Detection** - Von Neumann entropy calculation with visual status indicator
+- **Rotation Gate Highlighting** - Rx, Ry, Rz gates styled in amber to indicate encoded angle information
 
 ## Installation
 
@@ -33,16 +33,16 @@ Open [http://localhost:8000](http://localhost:8000) in your browser.
 
 ## Usage
 
-1. **Add Qubits** -- Use the `+`/`-` buttons in the header (1--10 qubits)
-2. **Place Gates** -- Drag gates from the left palette onto qubit wire slots
-3. **Parameterized Gates** -- Rx, Ry, Rz, CP, U3 open a parameter dialog with preset values
-4. **Two/Three-Qubit Gates** -- Drop CNOT, Toffoli, etc. on a qubit; they auto-connect to adjacent qubits
-5. **Load Templates** -- Select from the Templates dropdown to load pre-built algorithms
-6. **Multi-shot Measurement** -- Set Shots > 0 in the header, then simulate
-7. **View Results** -- Four visualization tabs: Bloch Spheres, Polar Diagram, Prob Distribution, Shot Histogram
-8. **Expand Bloch Spheres** -- Click "Expand" on any Bloch sphere for a large interactive view
-9. **Zoom Charts** -- Use the +/- controls on polar and bar charts
-10. **Reset** -- Press `R` or click the Reset button
+1. **Add Qubits** - Use the `+`/`-` buttons in the header (1--10 qubits)
+2. **Place Gates** - Drag gates from the left palette onto qubit wire slots
+3. **Parameterized Gates** - Rx, Ry, Rz, CP, U3 open a parameter dialog with preset values
+4. **Two/Three-Qubit Gates** - Drop CNOT, Toffoli, etc. on a qubit; they auto-connect to adjacent qubits
+5. **Load Templates** - Select from the Templates dropdown to load pre-built algorithms
+6. **Multi-shot Measurement** - Set Shots > 0 in the header, then simulate
+7. **View Results** - Four visualization tabs: Bloch Spheres, Polar Diagram, Prob Distribution, Shot Histogram
+8. **Expand Bloch Spheres** - Click "Expand" on any Bloch sphere for a large interactive view
+9. **Zoom Charts** - Use the +/- controls on polar and bar charts
+10. **Reset** - Press `R` or click the Reset button
 
 ## Circuit Templates
 
@@ -63,8 +63,8 @@ Open [http://localhost:8000](http://localhost:8000) in your browser.
 ### Single Qubit
 | Gate | Description |
 |------|-------------|
-| H | Hadamard -- equal superposition |
-| X, Y, Z | Pauli gates -- bit flip, bit+phase flip, phase flip |
+| H | Hadamard - equal superposition |
+| X, Y, Z | Pauli gates - bit flip, bit+phase flip, phase flip |
 | S, S-dagger | Phase gate and its inverse (pi/2 phase) |
 | T, T-dagger | pi/4 phase gate and its inverse |
 | Rx(theta), Ry(theta), Rz(theta) | Rotation gates around X, Y, Z axes |
@@ -74,10 +74,10 @@ Open [http://localhost:8000](http://localhost:8000) in your browser.
 ### Two Qubit
 | Gate | Description |
 |------|-------------|
-| CNOT | Controlled-NOT -- creates entanglement |
+| CNOT | Controlled-NOT - creates entanglement |
 | SWAP | Exchanges two qubit states |
-| CZ | Controlled-Z -- phase flip on \|11> |
-| CP(theta) | Controlled-Phase -- key gate for QFT |
+| CZ | Controlled-Z - phase flip on \|11> |
+| CP(theta) | Controlled-Phase - key gate for QFT |
 | CRx, CRy, CRz | Controlled rotation gates |
 
 ### Three Qubit
