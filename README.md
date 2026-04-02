@@ -2,7 +2,7 @@
 
 A production-quality quantum circuit simulator with a visual drag-and-drop circuit builder, interactive Bloch sphere visualization, Shor's algorithm support, and real-time state vector analysis. Built with FastAPI, NumPy, and vanilla JavaScript.
 
-![QSIM Screenshot](ss/probdist.png)
+![QSIM Screenshot](ss/qsimv1.png)
 
 ## Features
 
