@@ -1077,3 +1077,53 @@ body {
     gap: 8px;
     margin-top: 8px;
 }
+
+/* Noise panel */
+.noise-panel {
+    background: linear-gradient(180deg, var(--bg-elevated), var(--bg-surface));
+    border-bottom: 1px solid var(--accent-amber-dim);
+    padding: 6px 20px;
+    flex-shrink: 0;
+    z-index: 9;
+}
+
+.noise-panel-inner {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.noise-channel {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-secondary);
+}
+
+.noise-channel label {
+    min-width: 100px;
+    color: var(--accent-amber);
+    font-weight: 500;
+}
+
+.noise-channel input[type="range"] {
+    width: 100px;
+    accent-color: var(--accent-amber);
+    height: 4px;
+}
+
+.noise-val {
+    min-width: 30px;
+    text-align: right;
+    color: var(--accent-amber);
+    font-weight: 600;
+    font-size: 10px;
+}
+
+#noise-toggle-btn.noise-active {
+    border-color: var(--accent-amber);
+    color: var(--accent-amber);
+    background: rgba(245, 158, 11, 0.1);
+}

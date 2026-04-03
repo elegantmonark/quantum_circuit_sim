@@ -11,6 +11,7 @@ import numpy as np
 from typing import Any
 
 from gates import get_gate_matrix
+from noise import apply_noise_to_state
 
 
 def initialize_state(num_qubits: int) -> np.ndarray:
@@ -253,7 +254,10 @@ def system_entanglement_entropy(state: np.ndarray, num_qubits: int) -> float:
 
 
 def simulate_circuit(
-    num_qubits: int, circuit: list[list[dict[str, Any]]], shots: int | None = None
+    num_qubits: int,
+    circuit: list[list[dict[str, Any]]],
+    shots: int | None = None,
+    noise: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Run a full quantum circuit simulation.
 
@@ -265,6 +269,9 @@ def simulate_circuit(
                  For 3-qubit gates: also "control": int, "control2": int
                  For measurement: {"gate": "MEASURE", "target": int}
         shots: If provided, run this many measurement shots and return counts.
+        noise: If provided, dict with noise channel probabilities:
+               {"depolarizing": float, "dephasing": float, "amplitude_damping": float}
+               Applied to each qubit after every gate operation.
 
     Returns:
         Dict with state_vector, probabilities, bloch_vectors,
@@ -275,6 +282,9 @@ def simulate_circuit(
     """
     if not 1 <= num_qubits <= 10:
         raise ValueError("Number of qubits must be between 1 and 10.")
+
+    noise_config = noise or {}
+    noise_enabled = any(noise_config.get(k, 0) > 0 for k in ["depolarizing", "dephasing", "amplitude_damping"])
 
     state = initialize_state(num_qubits)
     gate_count = 0
@@ -308,6 +318,9 @@ def simulate_circuit(
                     raise ValueError(f"Target qubit {target} out of range for {num_qubits}-qubit system.")
                 state = apply_multi_qubit_gate(state, gate_matrix, [target], num_qubits)
                 gate_count += 1
+                # Apply noise to target qubit
+                if noise_enabled:
+                    state = apply_noise_to_state(state, target, num_qubits, noise_config)
 
             elif gate_size == 2:
                 control = operation.get("control")
@@ -317,6 +330,10 @@ def simulate_circuit(
                     raise ValueError(f"Qubit indices out of range for {num_qubits}-qubit system.")
                 state = apply_multi_qubit_gate(state, gate_matrix, [control, target], num_qubits)
                 gate_count += 1
+                # Apply noise to both qubits involved
+                if noise_enabled:
+                    state = apply_noise_to_state(state, control, num_qubits, noise_config)
+                    state = apply_noise_to_state(state, target, num_qubits, noise_config)
 
             elif gate_size == 3:
                 control = operation.get("control")
@@ -327,6 +344,11 @@ def simulate_circuit(
                     raise ValueError(f"Qubit indices out of range for {num_qubits}-qubit system.")
                 state = apply_multi_qubit_gate(state, gate_matrix, [control, control2, target], num_qubits)
                 gate_count += 1
+                # Apply noise to all three qubits
+                if noise_enabled:
+                    state = apply_noise_to_state(state, control, num_qubits, noise_config)
+                    state = apply_noise_to_state(state, control2, num_qubits, noise_config)
+                    state = apply_noise_to_state(state, target, num_qubits, noise_config)
 
     # Compute results
     probabilities = get_probabilities(state)
@@ -354,6 +376,7 @@ def simulate_circuit(
         "bloch_vectors": bloch_vectors,
         "entanglement_entropy": round(entanglement, 6),
         "num_gates": gate_count,
+        "noise_enabled": noise_enabled,
     }
 
     if classical_bits:
