@@ -32,10 +32,36 @@
         <label style="display:flex;align-items:center;gap:4px;font-family:var(--font-mono);font-size:10px;color:var(--text-secondary);">
             Shots: <input type="number" id="shots-input" min="0" max="100000" value="0" style="width:60px;padding:3px 6px;background:var(--bg-deep);border:1px solid var(--copper-dim);border-radius:3px;color:var(--text-primary);font-family:var(--font-mono);font-size:10px;">
         </label>
+        <button class="btn btn-reset" id="noise-toggle-btn" onclick="toggleNoisePanel()" title="Noise simulation">Noise: Off</button>
         <button class="btn btn-reset" onclick="resetCircuit()" title="Reset (R)">Reset</button>
         <button class="btn btn-simulate" onclick="runSimulation()" title="Simulate">Simulate</button>
     </div>
 </header>
+
+<!-- Noise Config Panel -->
+<div class="noise-panel" id="noise-panel" style="display:none;">
+    <div class="noise-panel-inner">
+        <div class="noise-channel">
+            <label>Depolarizing</label>
+            <input type="range" id="noise-depol" min="0" max="0.5" step="0.01" value="0" oninput="updateNoiseLabel()">
+            <span class="noise-val" id="noise-depol-val">0%</span>
+        </div>
+        <div class="noise-channel">
+            <label>Dephasing</label>
+            <input type="range" id="noise-deph" min="0" max="0.5" step="0.01" value="0" oninput="updateNoiseLabel()">
+            <span class="noise-val" id="noise-deph-val">0%</span>
+        </div>
+        <div class="noise-channel">
+            <label>Amplitude Damping</label>
+            <input type="range" id="noise-amp" min="0" max="0.5" step="0.01" value="0" oninput="updateNoiseLabel()">
+            <span class="noise-val" id="noise-amp-val">0%</span>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:4px;">
+            <button class="btn btn-reset" onclick="resetNoise()" style="font-size:9px;padding:3px 8px;">Reset Noise</button>
+            <span style="font-family:var(--font-mono);font-size:8px;color:var(--text-dim);line-height:1.4;flex:1;">Noise is applied after every gate via Kraus operators</span>
+        </div>
+    </div>
+</div>
 
 <div class="app-layout">
 
@@ -594,6 +620,43 @@ function formatAngle(theta) {
     return theta.toFixed(2);
 }
 
+// ===== NOISE CONTROLS =====
+function toggleNoisePanel() {
+    const panel = document.getElementById('noise-panel');
+    const visible = panel.style.display !== 'none';
+    panel.style.display = visible ? 'none' : 'block';
+    updateNoiseLabel();
+}
+
+function updateNoiseLabel() {
+    const dep = parseFloat(document.getElementById('noise-depol').value);
+    const deph = parseFloat(document.getElementById('noise-deph').value);
+    const amp = parseFloat(document.getElementById('noise-amp').value);
+    document.getElementById('noise-depol-val').textContent = (dep * 100).toFixed(0) + '%';
+    document.getElementById('noise-deph-val').textContent = (deph * 100).toFixed(0) + '%';
+    document.getElementById('noise-amp-val').textContent = (amp * 100).toFixed(0) + '%';
+
+    const btn = document.getElementById('noise-toggle-btn');
+    const active = dep > 0 || deph > 0 || amp > 0;
+    btn.textContent = active ? 'Noise: On' : 'Noise: Off';
+    btn.classList.toggle('noise-active', active);
+}
+
+function resetNoise() {
+    document.getElementById('noise-depol').value = 0;
+    document.getElementById('noise-deph').value = 0;
+    document.getElementById('noise-amp').value = 0;
+    updateNoiseLabel();
+}
+
+function getNoiseConfig() {
+    const dep = parseFloat(document.getElementById('noise-depol').value);
+    const deph = parseFloat(document.getElementById('noise-deph').value);
+    const amp = parseFloat(document.getElementById('noise-amp').value);
+    if (dep <= 0 && deph <= 0 && amp <= 0) return null;
+    return { depolarizing: dep, dephasing: deph, amplitude_damping: amp };
+}
+
 // ===== VIZ TABS =====
 function switchVizTab(tabName) {
     document.querySelectorAll('.viz-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tabName));
@@ -615,7 +678,8 @@ async function runSimulation() {
     simulating = true;
 
     const shots = parseInt(document.getElementById('shots-input').value) || 0;
-    const payload = { num_qubits: numQubits, circuit: [], shots: shots > 0 ? shots : null };
+    const noise = getNoiseConfig();
+    const payload = { num_qubits: numQubits, circuit: [], shots: shots > 0 ? shots : null, noise };
 
     circuit.forEach((step) => {
         const ops = [], processed = new Set();

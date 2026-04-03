@@ -42,10 +42,17 @@ class GateOperation(BaseModel):
     params: dict[str, Any] = Field(default_factory=dict)
 
 
+class NoiseConfig(BaseModel):
+    depolarizing: float = Field(default=0.0, ge=0.0, le=1.0)
+    dephasing: float = Field(default=0.0, ge=0.0, le=1.0)
+    amplitude_damping: float = Field(default=0.0, ge=0.0, le=1.0)
+
+
 class SimulateRequest(BaseModel):
     num_qubits: int = Field(ge=1, le=10)
     circuit: list[list[GateOperation]]
     shots: int | None = Field(default=None, ge=1, le=100000)
+    noise: NoiseConfig | None = None
 
 
 # --- Routes ---
@@ -76,7 +83,8 @@ async def simulate(req: SimulateRequest):
         circuit_data = [
             [op.model_dump() for op in step] for step in req.circuit
         ]
-        result = simulate_circuit(req.num_qubits, circuit_data, shots=req.shots)
+        noise_dict = req.noise.model_dump() if req.noise else None
+        result = simulate_circuit(req.num_qubits, circuit_data, shots=req.shots, noise=noise_dict)
         return result
     except ValueError as e:
         return JSONResponse(status_code=400, content={"error": str(e)})
