@@ -17,6 +17,7 @@ I made a high quality quantum circuit simulator with a visual drag-and-drop circ
 - **Probability Distribution** - Zoomable bar chart showing measurement probabilities
 - **Entanglement Detection** - Von Neumann entropy calculation with visual status indicator
 - **Rotation Gate Highlighting** - Rx, Ry, Rz gates styled in amber to indicate encoded angle information
+- **Noise Simulation** - Depolarizing, dephasing, and amplitude damping channels via Kraus operators
 
 ## Installation
 
@@ -33,7 +34,7 @@ Open [http://localhost:8000](http://localhost:8000) in your browser.
 
 ## Usage
 
-1. **Add Qubits** - Use the `+`/`-` buttons in the header (1--10 qubits)
+1. **Add Qubits** - Use the `+`/`-` buttons in the header (1-10 qubits)
 2. **Place Gates** - Drag gates from the left palette onto qubit wire slots
 3. **Parameterized Gates** - Rx, Ry, Rz, CP, U3 open a parameter dialog with preset values
 4. **Two/Three-Qubit Gates** - Drop CNOT, Toffoli, etc. on a qubit; they auto-connect to adjacent qubits
@@ -95,11 +96,12 @@ Open [http://localhost:8000](http://localhost:8000) in your browser.
   "num_qubits": 2,
   "circuit": [[{"gate": "H", "target": 0, "params": {}}],
               [{"gate": "CNOT", "target": 1, "control": 0, "params": {}}]],
-  "shots": 1024
+  "shots": 1024,
+  "noise": {"depolarizing": 0.05, "dephasing": 0.02, "amplitude_damping": 0.0}
 }
 ```
 
-Returns state vector, probabilities, Bloch vectors, entanglement entropy, and optionally shot counts.
+Returns state vector, probabilities, Bloch vectors, entanglement entropy, noise status, and optionally shot counts.
 
 ### `GET /gates`
 Full gate catalogue with matrices and descriptions.
@@ -139,16 +141,23 @@ Each qubit's Bloch vector is extracted from its reduced density matrix:
 ### Entanglement Detection
 Von Neumann entropy: `S(rho) = -Tr(rho * log2(rho))`. S=0 means separable, S=1 means maximally entangled.
 
+### Noise Simulation
+Noise is applied after every gate using the Kraus operator formalism. The state vector is converted to a density matrix, Kraus operators are applied (rho' = sum K_k rho K_k^dagger), and a pure state is sampled back. Three channels are supported:
+- **Depolarizing**: random X, Y, or Z error with probability p
+- **Dephasing**: random Z error with probability p (destroys coherence)
+- **Amplitude damping**: relaxation toward |0> with probability gamma (models T1 decay)
+
 ### Shor's Algorithm (N=15)
 The included Shor's template factors N=15 using a=2 with 3 counting qubits and 4 work qubits. Controlled modular multiplication is implemented as cyclic bit shifts via Fredkin (CSWAP) gates. The inverse QFT extracts the period r=4, yielding factors gcd(2^2-1, 15)=3 and gcd(2^2+1, 15)=5.
 
 ## Project Structure
 
 ```
-qsim/
+quantum_circuit_sim/
 ├── main.py              # FastAPI app, routes, request models
 ├── simulator.py         # State vector engine, measurement, Bloch, entropy
 ├── gates.py             # 23 gate matrix definitions (1/2/3 qubit)
+├── noise.py             # Noise channels (Kraus operator formalism)
 ├── circuit_templates.py # 9 pre-built algorithm circuits
 ├── requirements.txt     # fastapi, uvicorn, numpy, jinja2
 ├── README.md
