@@ -21,8 +21,8 @@ I made a high quality quantum circuit simulator with a visual drag-and-drop circ
 ## Installation
 
 ```bash
-git clone https://github.com/yourusername/qsim.git
-cd qsim
+git clone https://github.com/elegantmonark/quantum_circuit_sim.git
+cd quantum_circuit_sim
 pip install -r requirements.txt
 uvicorn main:app --reload
 ```
