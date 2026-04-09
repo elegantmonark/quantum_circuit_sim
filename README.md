@@ -30,6 +30,8 @@ uvicorn main:app --reload
 
 Open [http://localhost:8000](http://localhost:8000) in your browser.
 
+**Live demo:** [https://quantum-circuit-sim.onrender.com](https://quantum-circuit-sim.onrender.com)
+
 > **Note:** Requires Python 3.10+. If using Python 3.15 alpha (no NumPy wheels), use `py -3.12 -m uvicorn main:app --reload` instead.
 
 ## Usage
